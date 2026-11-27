@@ -22,3 +22,78 @@ select shipping_type,
 round(avg(purchase_amount),2)
 from customer
 where shipping_type in ('St')
+
+ Q5. Do subscribed customers spend more? Compare average spend and total revenue
+--     between subscribers and non-subscribers.
+SELECT subscription_status,
+       COUNT(customer_id)             AS total_customers,
+       ROUND(AVG(purchase_amount), 2) AS avg_spend,
+       SUM(purchase_amount)           AS total_revenue,
+       ROUND(100.0 * SUM(purchase_amount) / SUM(SUM(purchase_amount)) OVER (), 2) AS revenue_share_pct
+FROM customer
+GROUP BY subscription_status
+ORDER BY total_revenue DESC;
+ 
+ 
+-- Q6. Which 5 products have the highest percentage of purchases with a discount applied?
+SELECT item_purchased,
+       COUNT(*) AS total_orders,
+       ROUND(100.0 * SUM(CASE WHEN discount_applied = 'Yes' THEN 1 ELSE 0 END) / COUNT(*), 2) AS discount_rate_pct
+FROM customer
+GROUP BY item_purchased
+ORDER BY discount_rate_pct DESC
+LIMIT 5;
+ 
+ 
+-- Q7. Segment customers into New, Returning and Loyal based on previous purchases,
+--     and show the count of each segment.
+WITH customer_type AS (
+    SELECT customer_id,
+           previous_purchases,
+           CASE
+               WHEN previous_purchases = 1              THEN 'New'
+               WHEN previous_purchases BETWEEN 2 AND 10 THEN 'Returning'
+               ELSE 'Loyal'
+           END AS customer_segment
+    FROM customer
+)
+SELECT customer_segment,
+       COUNT(*) AS number_of_customers
+FROM customer_type
+GROUP BY customer_segment
+ORDER BY number_of_customers DESC;
+ 
+ 
+-- Q8. What are the top 3 most purchased products within each category?
+--     (DENSE_RANK keeps tied products, e.g. Blouse and Pants both have 171 orders.)
+WITH item_counts AS (
+    SELECT category,
+           item_purchased,
+           COUNT(customer_id) AS total_orders,
+           DENSE_RANK() OVER (PARTITION BY category ORDER BY COUNT(customer_id) DESC) AS item_rank
+    FROM customer
+    GROUP BY category, item_purchased
+)
+SELECT item_rank, category, item_purchased, total_orders
+FROM item_counts
+WHERE item_rank <= 3
+ORDER BY category, item_rank;
+ 
+ 
+-- Q9. Are repeat buyers (more than 5 previous purchases) also likely to subscribe?
+SELECT subscription_status,
+       COUNT(customer_id) AS repeat_buyers,
+       ROUND(100.0 * COUNT(customer_id) / SUM(COUNT(customer_id)) OVER (), 2) AS pct_of_repeat_buyers
+FROM customer
+WHERE previous_purchases > 5
+GROUP BY subscription_status;
+ 
+ 
+-- Q10. What is the revenue contribution of each age group?
+SELECT age_group,
+       COUNT(customer_id)   AS total_orders,
+       SUM(purchase_amount) AS total_revenue,
+       ROUND(100.0 * SUM(purchase_amount) / SUM(SUM(purchase_amount)) OVER (), 2) AS revenue_share_pct
+FROM customer
+GROUP BY age_group
+ORDER BY total_revenue DESC;
